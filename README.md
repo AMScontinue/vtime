@@ -49,6 +49,7 @@ docker run harbor.sail.se.sjtu.edu.cn/kubevtime/writer:v2
 ``` 
 docker run --privileged -it --ipc=host harbor.sail.se.sjtu.edu.cn/kubevtime/hooker:[tag]
 ``` 
+注意运行```docker run```之前一定要先在宿主机上设置过```sudo sh -c "echo 0 > /proc/sys/vm/mmap_min_addr"```
 
 ## 现在的进展
 0502碰到问题之后，目前准备尝试三点
