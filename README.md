@@ -47,7 +47,7 @@ docker run harbor.sail.se.sjtu.edu.cn/kubevtime/writer:v2
 ``` 
 然后打包hooker，Dockerfile所在路径是```./Dockerfile```。目前想要运行的命令是
 ``` 
-docker run --privileged -it --ipc=host harbor.sail.se.sjtu.edu.cn/kubevtime/hooker:testv12
+docker run --privileged -it --ipc=host harbor.sail.se.sjtu.edu.cn/kubevtime/hooker:[tag]
 ``` 
 
 ## 现在的进展
