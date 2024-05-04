@@ -105,8 +105,8 @@ static long hook_function(long a1, long a2, long a3,
 			  long a4, long a5, long a6,
 			  long a7)
 {
-	printf("!!!output from hook_function: syscall number %ld\n", a1);
-    //printf("a1: %ld a2: %ld a3: %ld a4: %ld a5: %ld a6: %ld a7: %ld\n", a1,a2,a3,a4,a5,a6,a7);
+	// printf("output from hook_function: syscall number %ld\n", a1);
+    // printf("a1: %ld a2: %ld a3: %ld a4: %ld a5: %ld a6: %ld a7: %ld\n", a1,a2,a3,a4,a5,a6,a7);
 
     /*-----time()-----*/
 	if(a1==201){
@@ -168,8 +168,6 @@ static long hook_function(long a1, long a2, long a3,
 int __hook_init(long placeholder __attribute__((unused)),
 		void *sys_call_hook_ptr)
 {
-    //print
-    printf("in __hook_init\n");
     //获取shmid
     initShareMem();
 	//保存原来的syscall

@@ -11,6 +11,8 @@ WORKDIR /usr/src/hooker
 RUN apt-get update && apt-get install -y gcc
 # 安装make
 RUN apt-get update && apt-get install -y make
+RUN apt update
+RUN apt install -y gcc make binutils-dev
 # 解决libopcodes-2.38-system.so: No such file or directory，需要找到现有的镜像里面对应/usr/lib/x86_64-linux-gnu/libopcodes-xxx-system.so是什么
 # RUN ln -s /usr/lib/x86_64-linux-gnu/libopcodes-2.40-system.so /usr/lib/x86_64-linux-gnu/libopcodes-2.38-system.so 
 # 编译你的 C++ 程序
