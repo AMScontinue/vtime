@@ -30,6 +30,8 @@ static long getVcurrtime(long Rtime);
 
 static void getVfuturetime(struct timespec *sleeptime);
 
+static void getVcurrtimeNano(struct timespec *Rtime);
+
 //获取共享内存头地址
 char* getShmHeadAddr(){
     char *shared_memory = (char *)shmat(gshmid, NULL, 0); 
@@ -101,6 +103,70 @@ void initShareMem() {
     }
 }
 
+// Compare two timespec structs
+int compare_timespec(struct timespec t1, struct timespec t2) {
+    if (t1.tv_sec > t2.tv_sec) {
+        return 1;
+    } else if (t1.tv_sec < t2.tv_sec) {
+        return -1;
+    } else {
+        if (t1.tv_nsec > t2.tv_nsec) {
+            return 1;
+        } else if (t1.tv_nsec < t2.tv_nsec) {
+            return -1;
+        } else {
+            return 0; // Equal
+        }
+    }
+}
+
+// Add two timespec structs
+struct timespec add_timespec(struct timespec t1, struct timespec t2) {
+    struct timespec result;
+    result.tv_sec = t1.tv_sec + t2.tv_sec;
+    result.tv_nsec = t1.tv_nsec + t2.tv_nsec;
+
+    if (result.tv_nsec >= 1000000000) { // Check for carry in nanoseconds
+        result.tv_sec++; // Add 1 second
+        result.tv_nsec -= 1000000000; // Subtract 1 billion nanoseconds
+    }
+
+    return result;
+}
+
+// Subtract timespec structs (end - start)
+struct timespec subtract_timespec(struct timespec start, struct timespec end) {
+    struct timespec result;
+
+    if (end.tv_nsec < start.tv_nsec) {
+        result.tv_sec = end.tv_sec - start.tv_sec - 1;
+        result.tv_nsec = 1000000000 + end.tv_nsec - start.tv_nsec;
+    } else {
+        result.tv_sec = end.tv_sec - start.tv_sec;
+        result.tv_nsec = end.tv_nsec - start.tv_nsec;
+    }
+
+    return result;
+}
+
+// Divide timespec by a double
+struct timespec divide_timespec(struct timespec dividend, double divisor) {
+    struct timespec result;
+    unsigned long long total_nsecs_dividend, total_nsecs_result;
+
+    // Convert dividend to total nanoseconds
+    total_nsecs_dividend = (unsigned long long)dividend.tv_sec * 1000000000ULL + dividend.tv_nsec;
+
+    // Perform division in nanoseconds
+    total_nsecs_result = total_nsecs_dividend / divisor;
+
+    // Extract seconds and nanoseconds from the result
+    result.tv_sec = total_nsecs_result / 1000000000ULL;
+    result.tv_nsec = total_nsecs_result % 1000000000ULL;
+
+    return result;
+}
+
 static long hook_function(long a1, long a2, long a3,
 			  long a4, long a5, long a6,
 			  long a7)
@@ -126,6 +192,19 @@ static long hook_function(long a1, long a2, long a3,
         long Rtime= ptr->tv_sec;      //attention:还没处理微秒哈！！！
         long Vtime=getVcurrtime(Rtime);
         ptr->tv_sec = Vtime;
+        return 0;
+    }
+
+    /*-----clock_gettime()-----*/
+    if(a1==228){
+        next_sys_call(a1, a2, a3, a4, a5, a6, a7);
+        printf("in clock_gettime(), a1: %ld a2: %ld a3: %ld a4: %ld a5: %ld a6: %ld a7: %ld\n", a1,a2,a3,a4,a5,a6,a7);
+        if(a2==0){//CLOCK_REALTIME
+            struct timespec *ptr = (struct timespec *)a3;
+            getVcurrtimeNano(ptr);
+        }else{//a2=1,CLOCK_MONOTONIC,暂不处理
+            ;
+        }
         return 0;
     }
 
@@ -215,6 +294,62 @@ static long getVcurrtime(long Rtime){
     printf("-----\nVirtual time past: %f, Virtual time: %ld\n", VTpast, Vtime);
 
 	return Vtime;
+
+}
+
+static void getVcurrtimeNano(struct timespec *Rtime){
+    printf("-----\nRtime:sec: %ld,nanosec: %ld\n", Rtime->tv_sec, Rtime->tv_nsec);
+    
+    // 读取共享内存
+    int entryNum = 0;
+    struct VTimeEntry* vTimeEntries = readShareMem(&entryNum);
+
+    // 打印读取的数据
+    printf("Read %d entries from shared memory:\n", entryNum);
+    for (int i = 0; i < entryNum; i++) {
+        printf("Entry %d: StartTimeSec=%lld, StartTimeNanosec=%lld, Rate=%lf\n",
+               i + 1, vTimeEntries[i].StartTimeSec, vTimeEntries[i].StartTimeNanosec, vTimeEntries[i].Rate);
+    }
+
+    // 记录startpoint
+    struct timespec startPoint;
+    startPoint.tv_sec = vTimeEntries[0].StartTimeSec; 
+    startPoint.tv_nsec = vTimeEntries[0].StartTimeNanosec; 
+
+    // 排除startPoint比现在时间大的情况
+    if(compare_timespec(startPoint,*Rtime) > 0) return;
+
+    // 记录虚拟时间计算值
+    struct timespec VTpast = {0, 0};
+
+    for (int i = 0; i < entryNum; ++i){
+        struct timespec currEntry;
+        currEntry.tv_sec = vTimeEntries[i].StartTimeSec; 
+        currEntry.tv_nsec = vTimeEntries[i].StartTimeNanosec; 
+
+        if (compare_timespec(currEntry,*Rtime) >= 0) break;
+        // 记录当前segment的结束时间点
+        struct timespec endTime;
+        if(i == entryNum - 1){
+            endTime = *Rtime;
+        } else {
+            //判断Rtime和nextEntry哪个大
+            struct timespec nextEntry;
+            nextEntry.tv_sec = vTimeEntries[i+1].StartTimeSec; 
+            nextEntry.tv_nsec = vTimeEntries[i+1].StartTimeNanosec; 
+            endTime = (compare_timespec(nextEntry,*Rtime) <= 0) ? nextEntry : *Rtime;
+        }
+        // 算出当前区间有效时间长度，除以TDF，并叠加
+        struct timespec currValidTime = subtract_timespec(currEntry,endTime);
+        struct timespec currValidVT = divide_timespec(currValidTime, vTimeEntries[i].Rate);
+        VTpast = add_timespec(VTpast,currValidVT);
+    }
+
+	struct timespec Vtime = add_timespec(startPoint,VTpast);
+    printf("-----\nVirtual time past: %ld, nanosec: %ld\n", VTpast.tv_sec, VTpast.tv_nsec);
+    printf("-----\nVirtual time : %ld, nanosec: %ld\n", Vtime.tv_sec, Vtime.tv_nsec);
+
+	*Rtime = Vtime;
 
 }
 
