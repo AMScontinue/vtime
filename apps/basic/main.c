@@ -198,7 +198,7 @@ static long hook_function(long a1, long a2, long a3,
     /*-----clock_gettime()-----*/
     if(a1==228){
         next_sys_call(a1, a2, a3, a4, a5, a6, a7);
-        printf("in clock_gettime(), a1: %ld a2: %ld a3: %ld a4: %ld a5: %ld a6: %ld a7: %ld\n", a1,a2,a3,a4,a5,a6,a7);
+        //printf("in clock_gettime(), a1: %ld a2: %ld a3: %ld a4: %ld a5: %ld a6: %ld a7: %ld\n", a1,a2,a3,a4,a5,a6,a7);
         if(a2==0){//CLOCK_REALTIME
             struct timespec *ptr = (struct timespec *)a3;
             getVcurrtimeNano(ptr);
@@ -257,6 +257,7 @@ int __hook_init(long placeholder __attribute__((unused)),
 	return 0;
 }
 
+// 秒级精度
 static long getVcurrtime(long Rtime){
     printf("-----\nRtime: %ld\n", Rtime);
     
@@ -272,9 +273,11 @@ static long getVcurrtime(long Rtime){
     }
 
     // 虚拟时间计算
-    // attention, 这里只计算了秒
     long startPoint = vTimeEntries[0].StartTimeSec; // 记录vt0
     double VTpast = 0.0;
+
+    // 排除startPoint比现在时间大的情况
+    if(startPoint>Rtime) return Rtime;
 
     for (int i = 0; i < entryNum; ++i){
         if (vTimeEntries[i].StartTimeSec >= Rtime) break;
@@ -290,13 +293,14 @@ static long getVcurrtime(long Rtime){
         VTpast += (endTime - vTimeEntries[i].StartTimeSec) / vTimeEntries[i].Rate;
     }
 
-	long Vtime=startPoint+VTpast;// attention:这里是long=long+double，相当于截断小数，注意一下
+	long Vtime=startPoint+VTpast; // attention:这里是long=long+double，相当于截断小数，注意一下
     printf("-----\nVirtual time past: %f, Virtual time: %ld\n", VTpast, Vtime);
 
 	return Vtime;
 
 }
 
+// 纳秒级精度
 static void getVcurrtimeNano(struct timespec *Rtime){
     printf("-----\nRtime:sec: %ld,nanosec: %ld\n", Rtime->tv_sec, Rtime->tv_nsec);
     
@@ -346,8 +350,8 @@ static void getVcurrtimeNano(struct timespec *Rtime){
     }
 
 	struct timespec Vtime = add_timespec(startPoint,VTpast);
-    printf("-----\nVirtual time past: %ld, nanosec: %ld\n", VTpast.tv_sec, VTpast.tv_nsec);
-    printf("-----\nVirtual time : %ld, nanosec: %ld\n", Vtime.tv_sec, Vtime.tv_nsec);
+    printf("-----\nVirtual time past: sec: %ld, nanosec: %ld\n", VTpast.tv_sec, VTpast.tv_nsec);
+    printf("-----\nVirtual time: sec : %ld, nanosec: %ld\n", Vtime.tv_sec, Vtime.tv_nsec);
 
 	*Rtime = Vtime;
 
@@ -374,6 +378,9 @@ static void getVfuturetime(struct timespec *sleeptime){
 
     printf("-----\nRtime: %ld,sleepEnd: %ld\n", Rtime,sleepEnd);
 
+    // 排除startPoint比现在时间大的情况
+    if(vTimeEntries[0].StartTimeSec > Rtime) return;
+
     // 遍历数组，找到Rtime和sleepEnd所在的时间区间
     int startIdx = 0;
     int endIdx = entryNum;
@@ -394,7 +401,7 @@ static void getVfuturetime(struct timespec *sleeptime){
         double segmentStart = (Rtime >= vTimeEntries[i].StartTimeSec) ? Rtime : vTimeEntries[i].StartTimeSec;
         double segmentEnd = ( i == entryNum-1 || sleepEnd <= vTimeEntries[i + 1].StartTimeSec) ? sleepEnd : vTimeEntries[i + 1].StartTimeSec;
         printf("segmentStart: %f,segmentEnd: %f\n", segmentStart,segmentEnd);
-        newSleepLength += (segmentEnd - segmentStart) / currentRate;
+        newSleepLength += (segmentEnd - segmentStart) * currentRate; // 注意这里改成做乘法
     }
 
     printf("-----\nnewSleeplength: %f\n", newSleepLength);
