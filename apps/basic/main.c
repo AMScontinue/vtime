@@ -202,7 +202,7 @@ static long hook_function(long a1, long a2, long a3,
         if(a2==0){//CLOCK_REALTIME
             struct timespec *ptr = (struct timespec *)a3;
             getVcurrtimeNano(ptr);
-        }else{//a2=1,CLOCK_MONOTONIC,暂不处理
+        }else{//attention:a2=1,CLOCK_MONOTONIC,暂不处理
             ;
         }
         return 0;
@@ -235,8 +235,35 @@ static long hook_function(long a1, long a2, long a3,
         }else{//attention: a2=1,不知道怎么处理，什么是系统单调时钟
             ;
         }
+        //attention: a5没有处理，也就是struct timespec *rem如果还有剩余时间是没有处理的。
         printf("new sleep time_spec: %ld seconds, %ld nanoseconds\n", ptr->tv_sec, ptr->tv_nsec);
         next_sys_call(a1, a2, a3, a4, a5, a6, a7);      
+        return 0;
+    }
+
+    /*-----nanosleep()-----*/
+    if(a1==35){
+        //printf("in nanosleep(), a1: %ld a2: %ld a3: %ld a4: %ld a5: %ld a6: %ld a7: %ld\n", a1,a2,a3,a4,a5,a6,a7);
+        struct timespec *ptr = (struct timespec *)a2;
+        getVfuturetime(ptr);
+        printf("new sleep time_spec: %ld seconds, %ld nanoseconds\n", ptr->tv_sec, ptr->tv_nsec);
+        //attention: a3没有处理，也就是struct timespec *rem如果还有剩余时间是没有处理的。
+        next_sys_call(a1, a2, a3, a4, a5, a6, a7);      
+        return 0;
+    }
+
+    /*-----alarm()-----*/
+    if(a1==37){
+        //attention: 注意这里的unsigned int和long int的类型转换问题，不知道现在这样会不会有问题
+        printf("in alarm(), a1: %ld a2: %ld a3: %ld a4: %ld a5: %ld a6: %ld a7: %ld\n", a1,a2,a3,a4,a5,a6,a7);
+        unsigned int seconds = (unsigned int)a2;
+        struct timespec ptr = {seconds, 0};
+        getVfuturetime(&ptr);
+        printf("new alarm time_spec: %ld seconds, %ld nanoseconds\n", ptr.tv_sec, ptr.tv_nsec);
+        a2 = (unsigned int)ptr.tv_sec;
+        printf("a2: %u\n", (unsigned int)a2);
+        next_sys_call(a1, a2, a3, a4, a5, a6, a7); 
+        //attention: alarm的返回值还没处理哈 
         return 0;
     }
 
