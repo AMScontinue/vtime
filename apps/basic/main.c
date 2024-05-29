@@ -238,7 +238,7 @@ static long hook_function(long a1, long a2, long a3,
             ;
         }
         //attention: a5没有处理，也就是struct timespec *rem如果还有剩余时间是没有处理的。
-        printf("new sleep time_spec: %ld seconds, %ld nanoseconds\n", ptr->tv_sec, ptr->tv_nsec);
+        //printf("new sleep time_spec: %ld seconds, %ld nanoseconds\n", ptr->tv_sec, ptr->tv_nsec);
         next_sys_call(a1, a2, a3, a4, a5, a6, a7);      
         return 0;
     }
@@ -248,7 +248,7 @@ static long hook_function(long a1, long a2, long a3,
         //printf("in nanosleep(), a1: %ld a2: %ld a3: %ld a4: %ld a5: %ld a6: %ld a7: %ld\n", a1,a2,a3,a4,a5,a6,a7);
         struct timespec *ptr = (struct timespec *)a2;
         getVfuturetime(ptr);
-        printf("new sleep time_spec: %ld seconds, %ld nanoseconds\n", ptr->tv_sec, ptr->tv_nsec);
+        //printf("new sleep time_spec: %ld seconds, %ld nanoseconds\n", ptr->tv_sec, ptr->tv_nsec);
         //attention: a3没有处理，也就是struct timespec *rem如果还有剩余时间是没有处理的。
         next_sys_call(a1, a2, a3, a4, a5, a6, a7);      
         return 0;
