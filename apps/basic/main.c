@@ -189,9 +189,11 @@ static long hook_function(long a1, long a2, long a3,
     if(a1==96){
         next_sys_call(a1, a2, a3, a4, a5, a6, a7);
         struct timeval *ptr = (struct timeval *)a2;
-        long Rtime= ptr->tv_sec;      //attention:还没处理微秒哈！！！
-        long Vtime=getVcurrtime(Rtime);
-        ptr->tv_sec = Vtime;
+        // 将 timeval 转换为 timespec
+        struct timespec t = { ptr->tv_sec, ptr->tv_usec * 1000L };
+        getVcurrtimeNano(&t);
+        ptr->tv_sec = t.tv_sec;
+        ptr->tv_usec = t.tv_nsec/1000;
         return 0;
     }
 
